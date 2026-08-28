@@ -14,7 +14,8 @@ autoreel.py    the CLI: make / upload / auto / watch / status
 server.py      the same thing as a local web service
 ui.html        its browser UI (one file, no build step)
 reel.py        the beat-cut renderer (a Python port of reelmaker's cutting)
-analyzer.py    what is in the video: BPM, objects (YOLO), day vs night
+tempo.py       BPM + beat phase, with no dependencies at all
+analyzer.py    what is in the video: objects (YOLO), day vs night
 metadata.py    analyzer facts -> title, description, tags
 youtube.py     OAuth + resumable upload + quota accounting
 ```
@@ -25,12 +26,19 @@ youtube.py     OAuth + resumable upload + quota accounting
 pip install -r requirements.txt
 ```
 
-ffmpeg must be on `PATH`. `ffprobe` is *not* required — some builds ship
-without it, so durations are read from ffmpeg itself.
+That is three Google client libraries, and nothing else. **ffmpeg must be on
+`PATH`** — it does the decoding and the rendering. `ffprobe` is *not* required;
+some builds ship without it, so durations are read from ffmpeg itself.
 
-The heavy dependencies (librosa, torch/ultralytics, opencv) are imported lazily.
-If you pass `--bpm` and `--no-analyze`, none of them are needed at all, and
-only the Google client libraries have to be installed.
+Rendering and tempo detection need **no third-party packages whatsoever**.
+`tempo.py` decodes through ffmpeg and runs the beat search in plain Python, so
+there is no librosa, numpy, numba or scipy to install — which is what makes
+this practical on a Raspberry Pi, where that stack is a slow and fragile build.
+
+The content analyzer (`--analyze`) is the one optional extra, and it is the
+heavy one: `pip install librosa opencv-python ultralytics numpy`. Without it
+everything still works; titles just come from your profile rather than from
+what YOLO saw in the frames.
 
 ## Use it
 
@@ -106,10 +114,10 @@ bridges, 8088 dropbox, 8090 status board.
 | `--order` | `sequential` · `shuffle` · `pingpong` |
 | `--fit` | `cover` (default) or `contain` |
 | `--no-zoom` | turn off Ken Burns — several times faster |
-| `--bpm` | skip tempo detection entirely |
+| `--bpm` | skip tempo detection and use this tempo |
 | `--length` | reel length in seconds, default 30 |
 | `--privacy` | `private` (default) · `unlisted` · `public` |
-| `--no-analyze` | skip YOLO/librosa; metadata comes from the profile alone |
+| `--no-analyze` | skip the YOLO/librosa analyzer; metadata comes from the profile alone |
 
 It uploads **private by default**. Change that deliberately, in
 `profile.json` or with `--privacy`.
@@ -149,6 +157,19 @@ Vertical video of 3 minutes or less gets ` #Shorts` appended to the title,
 which is what actually classifies a Short — the aspect ratio alone does not.
 
 ## What is verified
+
+Tempo detection was checked against generated click tracks: **90 → 90.00,
+100 → 100.00, 128 → 128.00, 174 → 173.99 BPM**, with the beat phase inside
+about 1.5 ms, taking ~0.4 s per track on the pure-Python path. A real
+3-minute MP3 detected as 133 BPM in 2.3 s and rendered end to end.
+
+No reliability score is reported, and that is a measured decision rather than
+an omission. The natural candidate — how tightly onset energy folds onto a
+single phase — separates a click track (19.7× uniform) from everything else,
+but scores real music at 4.01× and a beatless sine tone at 4.00×. Sharpening
+the envelope with adaptive whitening moved those to 5.54× and 4.73×, still too
+close to act on, and did not change either detected tempo. A confidence number
+that cannot tell music from a test tone would be worse than none.
 
 Rendering, the beat grid, the duration probe, metadata, the watch loop's
 dedup, and the quota refusal were all exercised on generated test media:

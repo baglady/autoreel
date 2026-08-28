@@ -14,7 +14,6 @@ several times faster.
 """
 from __future__ import annotations
 
-import math
 import random
 import shutil
 import subprocess
@@ -52,38 +51,14 @@ def _run(args: list) -> None:
 
 def detect_tempo(audio_path) -> dict:
     """
-    BPM and beat phase, following reelmaker's conventions: search 60-200 BPM,
-    and among near-ties (a tempo and its own half or double score alike)
-    prefer the candidate closest to 120 BPM in log space.
+    BPM and beat phase. Uses the dependency-free detector in tempo.py, which
+    is a port of the same comb-filter search reelmaker runs in the browser --
+    so no librosa, numpy or numba is needed to cut to the beat.
 
-    Returns {'bpm', 'offset', 'confidence', 'duration'}.
+    Returns {'bpm', 'offset', 'duration', 'beats_matched'}.
     """
-    import librosa
-    import numpy as np
-
-    y, sr = librosa.load(str(audio_path), sr=None, mono=True)
-    duration = float(librosa.get_duration(y=y, sr=sr))
-
-    onset = librosa.onset.onset_strength(y=y, sr=sr)
-    tempo, _ = librosa.beat.beat_track(y=y, sr=sr, onset_envelope=onset)
-    bpm = float(np.atleast_1d(tempo)[0]) or 120.0
-
-    # fold into 60-200, then apply the near-120 convention
-    while bpm and bpm < 60:
-        bpm *= 2
-    while bpm > 200:
-        bpm /= 2
-    for alt in (bpm / 2, bpm * 2):
-        if 60 <= alt <= 200 and abs(math.log(alt / 120)) < abs(math.log(bpm / 120)):
-            bpm = alt
-
-    # phase: first detected onset peak, wrapped into one beat period
-    period = 60.0 / bpm
-    peaks = librosa.onset.onset_detect(onset_envelope=onset, sr=sr, units='time')
-    offset = float(peaks[0]) % period if len(peaks) else 0.0
-
-    return {'bpm': round(bpm, 2), 'offset': round(offset, 4),
-            'confidence': 0.0, 'duration': duration}
+    import tempo
+    return tempo.detect(audio_path)
 
 
 def audio_duration(path) -> float:
@@ -198,24 +173,26 @@ def build(media_dir, audio, out, settings: ReelSettings = None, log=print) -> di
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    # An explicit BPM means the tempo detector -- and therefore librosa and
-    # numpy -- is not needed at all.
+    # An explicit BPM skips detection entirely -- one less decode pass.
     if settings.bpm:
-        tempo = {'bpm': settings.bpm, 'offset': 0.0,
-                 'duration': audio_duration(audio)}
+        beat = {'bpm': settings.bpm, 'offset': 0.0,
+                'duration': audio_duration(audio)}
     else:
-        tempo = detect_tempo(audio)
-    bpm = settings.bpm or tempo['bpm']
+        beat = detect_tempo(audio)
+    bpm = settings.bpm or beat['bpm']
     seg_start = settings.segment * SEGMENT_LENGTH
-    length = min(settings.length, max(1.0, tempo['duration'] - seg_start))
+    length = min(settings.length, max(1.0, beat['duration'] - seg_start))
 
-    times = cut_times(bpm, tempo['offset'], settings.cut, settings.rate, length)
+    times = cut_times(bpm, beat['offset'], settings.cut, settings.rate, length)
     spans = [(times[i], times[i + 1] - times[i]) for i in range(len(times) - 1)]
     spans = [(s, d) for s, d in spans if d > 0.03]
 
     files = gather_media(media_dir)
     picks = _order(files, settings.order, len(spans), settings.seed)
-    log('%.1f BPM | %d cuts | %d sources | %.1fs' % (bpm, len(spans), len(files), length))
+
+    note = ' (detected)' if not settings.bpm else ''
+    log('%.1f BPM%s | %d cuts | %d sources | %.1fs'
+        % (bpm, note, len(spans), len(files), length))
 
     work = Path(tempfile.mkdtemp(prefix='reel_'))
     try:

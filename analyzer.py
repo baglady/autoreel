@@ -13,20 +13,31 @@ from collections import Counter
 
 class AudioAnalyzer:
     def analyze(self, video_path):
-        """Extract audio from the video and describe it: BPM, brightness."""
+        """
+        Extract audio from the video and describe it: BPM, brightness.
+
+        librosa gives the spectral centroid as well, but it is a heavy
+        dependency and not always installed, so tempo falls back to the
+        dependency-free detector -- which is the one the renderer uses anyway.
+        """
         try:
             import librosa
             import numpy as np
 
             y, sr = librosa.load(str(video_path), sr=None)
-            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+            beat, _ = librosa.beat.beat_track(y=y, sr=sr)
             centroids = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
 
             return {
-                'bpm': round(float(np.atleast_1d(tempo)[0]), 1),
+                'bpm': round(float(np.atleast_1d(beat)[0]), 1),
                 'audio_brightness': float(np.mean(centroids)),
                 'duration': float(librosa.get_duration(y=y, sr=sr)),
             }
+        except ImportError:
+            import tempo
+            found = tempo.detect(video_path)
+            return {'bpm': found['bpm'], 'duration': found['duration'],
+                    'audio_brightness': None}
         except Exception as e:
             return {'bpm': 0, 'error': str(e)}
 

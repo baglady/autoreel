@@ -1,8 +1,9 @@
-librosa
-numpy
-opencv-python
-ultralytics
-Pillow
+# Uploading. These are the only hard requirements.
 google-api-python-client
 google-auth-oauthlib
 google-auth
+
+# Optional: the content analyzer (--analyze / "run analyzer").
+# Rendering and tempo detection do NOT need these -- tempo.py is dependency
+# free and decodes through ffmpeg.
+#   pip install librosa opencv-python ultralytics numpy
