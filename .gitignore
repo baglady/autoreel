@@ -1,0 +1,22 @@
+# secrets - never commit
+client_secret.json
+token.json
+
+# local state
+.quota.json
+.uploaded.json
+profile.json
+
+# output
+out/
+*.mp4
+*.webm
+
+# models
+yolov8n.pt
+*.pt
+
+__pycache__/
+*.pyc
+.venv/
+venv/

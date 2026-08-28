@@ -1,0 +1,8 @@
+librosa
+numpy
+opencv-python
+ultralytics
+Pillow
+google-api-python-client
+google-auth-oauthlib
+google-auth

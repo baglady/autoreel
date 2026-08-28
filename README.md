@@ -1,0 +1,138 @@
+# autoreel
+
+Cut photos and clips to the beat of a music file, make a vertical video, and
+put it on YouTube — unattended.
+
+It is the headless counterpart to the browser [`reelmaker`][reelmaker]: same
+beat grid and the same cut divisions, but rendered with ffmpeg instead of
+`MediaRecorder`, so it runs on a server or a Pi with no tab in the foreground.
+That is the whole reason it exists — a browser recording needs a human and a
+visible window; this does not.
+
+```
+autoreel.py    the CLI: make / upload / auto / watch / status
+reel.py        the beat-cut renderer (a Python port of reelmaker's cutting)
+analyzer.py    what is in the video: BPM, objects (YOLO), day vs night
+metadata.py    analyzer facts -> title, description, tags
+youtube.py     OAuth + resumable upload + quota accounting
+```
+
+## Install
+
+```bash
+pip install -r requirements.txt
+```
+
+ffmpeg must be on `PATH`. `ffprobe` is *not* required — some builds ship
+without it, so durations are read from ffmpeg itself.
+
+The heavy dependencies (librosa, torch/ultralytics, opencv) are imported lazily.
+If you pass `--bpm` and `--no-analyze`, none of them are needed at all, and
+only the Google client libraries have to be installed.
+
+## Use it
+
+Render a reel and stop:
+
+```bash
+python autoreel.py make media/ track.wav -o out/reel.mp4 --cut 3 --order shuffle
+```
+
+Render one and upload it:
+
+```bash
+python autoreel.py auto media/ track.wav
+```
+
+Upload something that already exists:
+
+```bash
+python autoreel.py upload out/reel.mp4
+```
+
+Watch a folder and upload whatever lands in it — point the browser reelmaker's
+downloads here and the loop is closed:
+
+```bash
+python autoreel.py watch out/
+```
+
+Always try it with `--dry-run` first. It prints the exact title, tags and
+privacy it would send, and uploads nothing.
+
+```bash
+python autoreel.py auto media/ track.wav --dry-run
+```
+
+### The knobs
+
+| Flag | |
+|---|---|
+| `--cut 0..6` | `1/4 beat`, `1/2`, `1 beat` (default), `2 beats`, `1 bar`, `2 bars`, `4 bars` |
+| `--rate` | stretches the beat grid, 0.25–4 |
+| `--segment N` | which 30-second block of the track to use |
+| `--order` | `sequential` · `shuffle` · `pingpong` |
+| `--fit` | `cover` (default) or `contain` |
+| `--no-zoom` | turn off Ken Burns — several times faster |
+| `--bpm` | skip tempo detection entirely |
+| `--length` | reel length in seconds, default 30 |
+| `--privacy` | `private` (default) · `unlisted` · `public` |
+| `--no-analyze` | skip YOLO/librosa; metadata comes from the profile alone |
+
+It uploads **private by default**. Change that deliberately, in
+`profile.json` or with `--privacy`.
+
+## Connecting it to YouTube
+
+1. Make a project in the Google Cloud console and enable **YouTube Data API v3**.
+2. Create an OAuth client of type **Desktop app**.
+3. Download the JSON and save it beside the scripts as `client_secret.json`.
+
+The first upload opens a browser for consent and writes `token.json`; after
+that it runs unattended. On a headless box use `--headless` for console
+consent. Both files are gitignored, and neither should ever be committed.
+
+## Quota — read this before planning a posting schedule
+
+An upload costs **1600 units** against a default **10,000 units/day** project
+quota. That is **six uploads per day**, per Google Cloud *project* — not per
+channel, so extra channels do not help. Raising it requires a compliance audit.
+
+`autoreel` counts what it has spent in `.quota.json` and refuses to begin a
+transfer it cannot finish, rather than failing halfway through. `watch` sleeps
+an hour when it hits the ceiling. Check it any time:
+
+```bash
+python autoreel.py status
+```
+
+## Metadata
+
+Rule-based, not generative: the same video always produces the same title, and
+nothing is asserted about the footage that the analyzer did not detect. Copy
+`profile.example.json` to `profile.json` to set the standing description, fixed
+tags, category and default privacy.
+
+Vertical video of 3 minutes or less gets ` #Shorts` appended to the title,
+which is what actually classifies a Short — the aspect ratio alone does not.
+
+## What is verified
+
+Rendering, the beat grid, the duration probe, metadata, the watch loop's
+dedup, and the quota refusal were all exercised on generated test media:
+a 12-second reel came out `1080x1920`, H.264 + AAC, 13 cuts at 128 BPM.
+
+The **upload call itself has not been run against the live API** — that needs
+your OAuth client, and it would post a real video. `--dry-run` covers
+everything up to the transfer.
+
+## Notes
+
+- Nothing is ever uploaded twice: `.uploaded.json` keys on filename + size, so
+  a re-render counts as a new video but a re-scan does not.
+- `watch` waits for a file to stop growing before touching it, so a video still
+  being written is not uploaded half-finished.
+- A dry run is never written to the upload state — it would make the file look
+  uploaded and block the real run later.
+
+[reelmaker]: https://github.com/baglady/dspm-archive
