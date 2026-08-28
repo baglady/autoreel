@@ -20,3 +20,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# working folders used by server.py (your media, not the tool)
+media/
+audio/

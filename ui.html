@@ -1,0 +1,313 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>autoreel</title>
+<style>
+  :root {
+    --bg:#0A0B0F; --panel:#14161E; --line:#242836; --ink:#E9EBF2;
+    --dim:#8B92A8; --accent:#7CC4FF; --good:#6EE7A8; --warn:#FFC46B; --bad:#FF8A8A;
+  }
+  * { box-sizing:border-box }
+  body {
+    margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-sans-serif,
+    system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    padding:18px 20px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+  }
+  h1 { font-size:17px; margin:0; letter-spacing:.02em }
+  .sub { color:var(--dim); font-size:12px }
+  .wrap { max-width:1000px; margin:0 auto; padding:20px; display:grid; gap:16px }
+  @media (min-width:860px) { .cols { display:grid; grid-template-columns:1fr 1fr; gap:16px } }
+  section {
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:16px;
+  }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.09em;
+       color:var(--dim); margin:0 0 12px }
+  label { display:block; font-size:12px; color:var(--dim); margin:10px 0 4px }
+  input, select, button, textarea {
+    font:inherit; color:var(--ink); background:#0E1017;
+    border:1px solid var(--line); border-radius:8px; padding:8px 10px; width:100%;
+  }
+  input[type=checkbox] { width:auto; accent-color:var(--accent) }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px }
+  button {
+    cursor:pointer; background:#1B2030; border-color:#2C3348; font-weight:600;
+  }
+  button:hover:not(:disabled) { background:#232A3D }
+  button:disabled { opacity:.45; cursor:not-allowed }
+  button.go { background:var(--accent); color:#05202F; border-color:var(--accent) }
+  button.pub { background:var(--good); color:#04240F; border-color:var(--good) }
+  .inline { display:flex; gap:8px; align-items:center }
+  .chip {
+    display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px;
+    background:#1B2030; color:var(--dim); border:1px solid var(--line);
+  }
+  .chip.on { color:var(--good); border-color:#255A3E }
+  .chip.off { color:var(--warn); border-color:#5A4A25 }
+  ul { list-style:none; margin:0; padding:0; max-height:190px; overflow:auto }
+  li { padding:5px 0; border-bottom:1px solid var(--line); font-size:13px;
+       display:flex; justify-content:space-between; gap:10px }
+  li:last-child { border-bottom:0 }
+  .muted { color:var(--dim); font-size:12px }
+  pre {
+    background:#080A0E; border:1px solid var(--line); border-radius:8px;
+    padding:10px; font-size:12px; max-height:220px; overflow:auto; margin:10px 0 0;
+    white-space:pre-wrap; word-break:break-word;
+  }
+  video { width:100%; border-radius:10px; background:#000; max-height:420px }
+  .drop {
+    border:1.5px dashed #2C3348; border-radius:10px; padding:18px; text-align:center;
+    color:var(--dim); font-size:13px; cursor:pointer;
+  }
+  .drop.hot { border-color:var(--accent); color:var(--accent) }
+  .warn { color:var(--warn) } .bad { color:var(--bad) } .good { color:var(--good) }
+</style>
+
+<header>
+  <h1>autoreel</h1>
+  <span class="sub">beat-cut reels &rarr; YouTube</span>
+  <span style="flex:1"></span>
+  <span id="quota" class="chip">quota …</span>
+  <span id="conn" class="chip">…</span>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <h2>1 &middot; Sources</h2>
+    <div class="drop" id="drop">
+      Drop photos, clips and a music file here — or click to choose.
+      <input type="file" id="picker" multiple hidden>
+    </div>
+    <div class="cols" style="margin-top:12px">
+      <div>
+        <div class="muted">Media <span id="nmedia"></span></div>
+        <ul id="media"></ul>
+      </div>
+      <div>
+        <label for="audio">Track</label>
+        <select id="audio"></select>
+        <div class="muted" id="ntracks" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="cols">
+    <section>
+      <h2>2 &middot; Cut</h2>
+      <label for="cut">Cut length</label>
+      <select id="cut"></select>
+      <div class="row">
+        <div><label for="order">Order</label>
+          <select id="order">
+            <option>sequential</option><option>shuffle</option><option>pingpong</option>
+          </select></div>
+        <div><label for="fit">Fit</label>
+          <select id="fit"><option>cover</option><option>contain</option></select></div>
+      </div>
+      <div class="row3">
+        <div><label for="bpm">BPM</label><input id="bpm" placeholder="auto"></div>
+        <div><label for="length">Seconds</label><input id="length" value="30"></div>
+        <div><label for="segment">Segment</label><input id="segment" value="0"></div>
+      </div>
+      <label class="inline" style="margin-top:12px">
+        <input type="checkbox" id="zoom" checked> <span>Ken Burns zoom</span>
+      </label>
+      <p class="muted" style="margin:8px 0 0">
+        Leave BPM empty to detect it — that needs librosa installed. Type a
+        number and nothing heavy is imported.
+      </p>
+      <button class="go" id="render" style="margin-top:12px">Render reel</button>
+    </section>
+
+    <section>
+      <h2>3 &middot; Publish</h2>
+      <label for="outfile">Rendered</label>
+      <select id="outfile"></select>
+      <label for="title">Title <span class="muted">(blank = generated)</span></label>
+      <input id="title" placeholder="auto from what was detected">
+      <div class="row">
+        <div><label for="privacy">Privacy</label>
+          <select id="privacy">
+            <option>private</option><option>unlisted</option><option>public</option>
+          </select></div>
+        <div><label>&nbsp;</label>
+          <label class="inline"><input type="checkbox" id="analyze">
+            <span class="muted">run analyzer</span></label></div>
+      </div>
+      <label class="inline" style="margin-top:10px">
+        <input type="checkbox" id="dry" checked> <span>Dry run (nothing uploaded)</span>
+      </label>
+      <button class="pub" id="publish" style="margin-top:12px">Publish</button>
+      <p class="muted" id="pubnote" style="margin:8px 0 0"></p>
+    </section>
+  </div>
+
+  <section id="previewBox" hidden>
+    <h2>Preview</h2>
+    <video id="preview" controls playsinline></video>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <pre id="log">idle.</pre>
+  </section>
+
+  <section>
+    <h2>Uploaded</h2>
+    <ul id="uploaded"></ul>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const token = new URLSearchParams(location.search).get('token') || '';
+let polling = null;
+
+const api = async (path, opts = {}) => {
+  const headers = Object.assign({}, opts.headers || {});
+  if (token) headers['X-Token'] = token;
+  if (opts.json) { headers['Content-Type'] = 'application/json';
+                   opts.body = JSON.stringify(opts.json); delete opts.json; }
+  const r = await fetch(path, Object.assign({}, opts, { headers }));
+  const text = await r.text();
+  let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  if (!r.ok) throw new Error(data.error || r.status);
+  return data;
+};
+
+const setLog = t => { $('log').textContent = t; };
+
+async function refresh() {
+  const s = await api('/api/state');
+
+  $('nmedia').textContent = '(' + s.media.length + ')';
+  $('media').innerHTML = s.media.map(m =>
+    '<li><span>' + m + '</span></li>').join('') ||
+    '<li class="muted">nothing yet</li>';
+
+  const keepAudio = $('audio').value;
+  $('audio').innerHTML = s.tracks.map(t =>
+    '<option>' + t + '</option>').join('');
+  if (s.tracks.includes(keepAudio)) $('audio').value = keepAudio;
+  $('ntracks').textContent = s.tracks.length
+    ? s.tracks.length + ' track(s) available'
+    : 'no music file yet — drop one above';
+
+  const keepOut = $('outfile').value;
+  $('outfile').innerHTML = s.outputs.map(o =>
+    '<option value="' + o.name + '">' + o.name +
+    '  (' + (o.size / 1048576).toFixed(1) + ' MB)</option>').join('') ||
+    '<option value="">nothing rendered yet</option>';
+  if (s.outputs.some(o => o.name === keepOut)) $('outfile').value = keepOut;
+  showPreview();
+
+  if (!$('cut').options.length) {
+    const labels = ['1/4 beat','1/2 beat','1 beat','2 beats','1 bar','2 bars','4 bars'];
+    $('cut').innerHTML = labels.map((l, i) =>
+      '<option value="' + i + '"' + (i === 2 ? ' selected' : '') + '>' + l +
+      '</option>').join('');
+  }
+
+  const q = s.quota.left == null ? 'quota ?' :
+    'quota ' + s.quota.left + ' (' + s.quota.uploads + ' uploads left today)';
+  $('quota').textContent = q;
+  $('quota').className = 'chip' + (s.quota.uploads === 0 ? ' off' : '');
+
+  $('conn').textContent = s.connected ? 'youtube connected'
+    : s.has_client_secret ? 'not authorised yet' : 'no client_secret.json';
+  $('conn').className = 'chip ' + (s.connected ? 'on' : 'off');
+  $('pubnote').innerHTML = s.has_client_secret ? '' :
+    '<span class="warn">client_secret.json is missing — real uploads will fail. ' +
+    'Dry run still works.</span>';
+
+  $('uploaded').innerHTML = s.uploaded.length ? s.uploaded.slice().reverse().map(v =>
+    '<li><a href="https://youtu.be/' + v.id + '" target="_blank" rel="noopener" ' +
+    'style="color:var(--accent)">' + (v.title || v.file) + '</a>' +
+    '<span class="muted">' + v.at + '</span></li>').join('')
+    : '<li class="muted">nothing uploaded yet</li>';
+}
+
+function showPreview() {
+  const f = $('outfile').value;
+  $('previewBox').hidden = !f;
+  if (f && !$('preview').src.endsWith(encodeURIComponent(f)))
+    $('preview').src = '/out/' + encodeURIComponent(f);
+}
+$('outfile').addEventListener('change', showPreview);
+
+// --- uploading source files
+const drop = $('drop'), picker = $('picker');
+drop.addEventListener('click', () => picker.click());
+picker.addEventListener('change', () => sendFiles(picker.files));
+['dragenter','dragover'].forEach(e => drop.addEventListener(e, ev => {
+  ev.preventDefault(); drop.classList.add('hot'); }));
+['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => {
+  ev.preventDefault(); drop.classList.remove('hot'); }));
+drop.addEventListener('drop', ev => sendFiles(ev.dataTransfer.files));
+
+async function sendFiles(files) {
+  if (!files || !files.length) return;
+  const form = new FormData();
+  for (const f of files) form.append('f', f, f.name);
+  setLog('uploading ' + files.length + ' file(s)…');
+  try {
+    const r = await api('/api/files', { method: 'POST', body: form });
+    setLog(r.saved.map(s => s.name + ' → ' + s.into).join('\n') || 'nothing usable');
+    await refresh();
+  } catch (e) { setLog('upload failed: ' + e.message); }
+}
+
+// --- jobs
+function follow(id) {
+  clearInterval(polling);
+  polling = setInterval(async () => {
+    const j = await api('/api/job/' + id);
+    setLog(j.lines.join('\n') + '\n(' + j.state + ', ' + j.elapsed + 's)');
+    if (j.state !== 'running') {
+      clearInterval(polling);
+      $('render').disabled = $('publish').disabled = false;
+      await refresh();
+      if (j.kind === 'render' && j.result.file) $('outfile').value = j.result.file;
+      showPreview();
+      if (j.result && j.result.url) setLog($('log').textContent + '\n' + j.result.url);
+    }
+  }, 900);
+}
+
+$('render').addEventListener('click', async () => {
+  if (!$('audio').value) return setLog('pick a music file first.');
+  $('render').disabled = true;
+  setLog('rendering…');
+  try {
+    const r = await api('/api/render', { method: 'POST', json: {
+      audio: $('audio').value, cut: +$('cut').value, order: $('order').value,
+      fit: $('fit').value, zoom: $('zoom').checked,
+      bpm: $('bpm').value || null, length: $('length').value || 30,
+      segment: $('segment').value || 0 } });
+    follow(r.job);
+  } catch (e) { setLog('failed: ' + e.message); $('render').disabled = false; }
+});
+
+$('publish').addEventListener('click', async () => {
+  const file = $('outfile').value;
+  if (!file) return setLog('render something first.');
+  if (!$('dry').checked &&
+      !confirm('Upload ' + file + ' to YouTube as ' + $('privacy').value + '?')) return;
+  $('publish').disabled = true;
+  setLog('publishing…');
+  try {
+    const r = await api('/api/publish', { method: 'POST', json: {
+      file, title: $('title').value || null, privacy: $('privacy').value,
+      analyze: $('analyze').checked, dry_run: $('dry').checked } });
+    follow(r.job);
+  } catch (e) { setLog('failed: ' + e.message); $('publish').disabled = false; }
+});
+
+refresh().catch(e => setLog('cannot reach the server: ' + e.message));
+setInterval(() => { if (!polling) refresh().catch(() => {}); }, 15000);
+</script>

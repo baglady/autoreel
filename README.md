@@ -11,6 +11,8 @@ visible window; this does not.
 
 ```
 autoreel.py    the CLI: make / upload / auto / watch / status
+server.py      the same thing as a local web service
+ui.html        its browser UI (one file, no build step)
 reel.py        the beat-cut renderer (a Python port of reelmaker's cutting)
 analyzer.py    what is in the video: BPM, objects (YOLO), day vs night
 metadata.py    analyzer facts -> title, description, tags
@@ -63,6 +65,36 @@ privacy it would send, and uploads nothing.
 ```bash
 python autoreel.py auto media/ track.wav --dry-run
 ```
+
+## Run it locally instead
+
+```bash
+python server.py
+```
+
+Then open **http://127.0.0.1:8092**. Drop photos, clips and a music file onto
+the page, set the cut, render, preview the result, publish. Same code as the
+CLI — `server.py` calls straight into `reel.py` and `youtube.py`.
+
+It is **standard library only**: no Flask, no build step, nothing to install
+beyond what a render already needs. Files sort themselves into `media/` and
+`audio/` by extension, renders land in `out/`, and all three are gitignored.
+
+To reach it from a phone on the same network, bind wider — with a token:
+
+```bash
+python server.py --host 0.0.0.0 --token yourtoken
+```
+
+Then open `http://<laptop-ip>:8092/?token=yourtoken`.
+
+**Reads are open; render, upload and publish require the token.** Binding to a
+routable address without one is refused outright, because this process can
+publish to your YouTube channel and a venue LAN is not a trusted network. Pass
+`--insecure` to override deliberately. (Loopback needs no token.)
+
+Port 8092 is chosen to sit clear of the dspm services — 8080 PWA, 8081/8082
+bridges, 8088 dropbox, 8090 status board.
 
 ### The knobs
 
@@ -121,6 +153,13 @@ which is what actually classifies a Short — the aspect ratio alone does not.
 Rendering, the beat grid, the duration probe, metadata, the watch loop's
 dedup, and the quota refusal were all exercised on generated test media:
 a 12-second reel came out `1080x1920`, H.264 + AAC, 13 cuts at 128 BPM.
+
+The server was driven end to end in a browser: files uploaded through the page
+arrived byte-identical, a render ran from the UI (22 cuts, 128 BPM, 19s) and
+played back in the preview, and a dry-run publish produced the expected title
+and tags. Auth was checked directly — reads 200 without a token, mutations 401
+without it and 401 with a wrong one, malformed JSON 400, and a routable bind
+with no token refused to start.
 
 The **upload call itself has not been run against the live API** — that needs
 your OAuth client, and it would post a real video. `--dry-run` covers
